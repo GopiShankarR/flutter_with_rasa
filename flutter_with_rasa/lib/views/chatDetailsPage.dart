@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/chatDetailsNotifier.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
 
 class ChatDetailsPage extends StatelessWidget {
   final int userId;
@@ -30,6 +31,7 @@ class _ChatDetailsPage extends StatefulWidget {
 }
 
 class __ChatDetailsPageState extends State<_ChatDetailsPage> {
+  late io.Socket _socket;
   late TextEditingController _messageController;
   bool _isLoading = true;
 
@@ -37,7 +39,17 @@ class __ChatDetailsPageState extends State<_ChatDetailsPage> {
   void initState() {
     super.initState();
     _messageController = TextEditingController();
+    _initializeSocket();
     _fetchInitialChatData();
+  }
+
+  void _initializeSocket() {
+    _socket = io.io('http://192.168.0.124:8080');
+
+    _socket.connect();
+    _socket.on('connect_error', (error) {
+      print('Connection error: $error');
+    });
   }
 
   Future<void> _fetchInitialChatData() async {
@@ -138,6 +150,7 @@ class __ChatDetailsPageState extends State<_ChatDetailsPage> {
                         FloatingActionButton(
                           onPressed: () {
                             Provider.of<ChatDetailsNotifier>(context, listen: false).sendMessage(_messageController.text);
+                            _socket.emit('new_message', _messageController.text);
                             _messageController.clear();
                           },
                           child: Icon(Icons.send, color: Colors.white, size: 18),
@@ -158,6 +171,7 @@ class __ChatDetailsPageState extends State<_ChatDetailsPage> {
   @override
   void dispose() {
     _messageController.dispose();
+    _socket.disconnect();
     super.dispose();
   }
 }
