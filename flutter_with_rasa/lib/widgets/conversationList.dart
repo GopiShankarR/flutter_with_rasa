@@ -1,33 +1,44 @@
 // ignore_for_file: prefer_const_constructors, must_be_immutable, unrelated_type_equality_checks
 
 import 'package:flutter/material.dart';
-import 'package:flutter_with_rasa/models/chatMessages.dart';
+import '../models/socketProvider.dart';
 import '../views/chatDetailsPage.dart';
+import 'package:intl/intl.dart';
 
 class ConversationList extends StatefulWidget {
-  int userId;
-  int receiverId;
+  double userId;
+  double receiverId;
   String name;
-  String messageContent;
-  DateTime timeStamp;
-  ConversationList({super.key, required this.userId, required this.receiverId, required this.messageContent, required this.name, required this.timeStamp});
+  String? messageContent;
+  double conversationId;
+  DateTime? timeStamp;
+  final SocketProvider? _socket;
+  ConversationList(this._socket, {super.key, required this.userId, required this.receiverId, required this.messageContent, required this.conversationId, required this.name, this.timeStamp,});
 
   @override
   State<ConversationList> createState() => _ConversationListState();
 }
 
 class _ConversationListState extends State<ConversationList> {
-  late Future<List<ChatMessages>> conversations;
 
   @override
   void initState() {
     super.initState();
-    conversations = _fetchMessagesData();
   }
 
-  Future<List<ChatMessages>> _fetchMessagesData() async {
-    List<ChatMessages> data = await ChatMessages().queryData(widget.userId);
-    return data;
+   String processTimestamp(DateTime time) {
+    final now = DateTime.now();
+    final formatter = DateFormat('HH:mm');
+    final dateFormatter = DateFormat('yyyy-MM-dd'); 
+    final difference = now.difference(time);
+    var formattedTime = '', formattedDate = '';
+    if (difference.inHours < 24) {
+      formattedTime = formatter.format(time);
+      return formattedTime;
+    } else {
+      formattedDate = dateFormatter.format(time);
+      return formattedDate;
+    }
   }
 
   @override
@@ -46,7 +57,7 @@ class _ConversationListState extends State<ConversationList> {
           ),
           if(widget.messageContent != "")
             Text(
-              ChatMessages().processTimestamp(widget.timeStamp), // Format time as 'H:mm' (24-hour format)
+              processTimestamp(widget.timeStamp as DateTime),
               style: TextStyle(
                 color: Colors.grey,
                 fontSize: 12.0,
@@ -57,7 +68,7 @@ class _ConversationListState extends State<ConversationList> {
       subtitle: Container(
         padding: EdgeInsets.only(top: 5.0),
         child: Text(
-          widget.messageContent,
+          "",
           style: TextStyle(
             color: Colors.grey,
           ),
@@ -66,112 +77,18 @@ class _ConversationListState extends State<ConversationList> {
         ),
       ),
       onTap: () {
+        widget._socket?.socket?.emit('get_conversation_id', { 'userId': widget.userId, 'receiverId': widget.receiverId });
+        widget._socket?.socket?.on('return_conversation_id', (response) {
+          widget.conversationId = response;
+        });
         Navigator.push(
           context, MaterialPageRoute(
             builder: (context) {
-              return ChatDetailsPage(widget.userId, widget.receiverId, widget.name);
+              return ChatDetailsPage(widget._socket, widget.userId.toDouble(), widget.receiverId.toDouble(), widget.name, widget.conversationId);
             }
           )
         );
       },
     );
-    // GestureDetector(
-    //   onTap: () {
-    //     Navigator.push(
-    //       context, MaterialPageRoute(
-    //         builder: (context) {
-    //           return ChatDetailsPage(widget.userId, widget.name);
-    //         }
-    //       )
-    //     );
-    //   },
-    //   child: Container(
-    //     padding: EdgeInsets.only(left: 16,right: 16,top: 10,bottom: 10),
-    //     child: Row(
-    //       children: <Widget>[
-    //         Expanded(
-    //           child: Row(
-    //             children: <Widget>[
-    //               SizedBox(width: 16,),
-    //               Expanded(
-    //                 child: Container(
-    //                   color: Colors.transparent,
-    //                   child: Column(
-    //                     crossAxisAlignment: CrossAxisAlignment.start,
-    //                     children: <Widget>[
-    //                       Text(widget.name, style: TextStyle(fontSize: 16),),
-    //                       SizedBox(height: 6,),
-    //                       Text(widget.messageContent),
-    //                     ],
-    //                   ),
-    //                 ),
-    //               ),
-    //             ],
-    //           ),
-    //         ),
-    //         Text("${ChatMessages().processTimestamp(widget.timeStamp)}"),
-    //       ],
-    //     ),
-    //   ),
-    // );
-  //   FutureBuilder<List<ChatMessages>>(
-  //       future: conversations,
-  //       builder: (context, snapshot) {
-  //         if (snapshot.connectionState == ConnectionState.waiting) {
-  //           return const Scaffold(
-  //             body: Center(
-  //               child: CircularProgressIndicator(),
-  //             ),
-  //           );
-  //         } else {
-  //           final data = snapshot.data as List<ChatMessages>;
-  //           return Scaffold(body: 
-  //           GestureDetector(
-  //             onTap: () {
-  //               Navigator.push(
-  //                 context, MaterialPageRoute(
-  //                   builder: (context) {
-  //                     return ChatDetailsPage(widget.userId, widget.name);
-  //                   }
-  //                 )
-  //               );
-  //             },
-  //             child: ListView.builder(
-  //               itemCount: data.length,
-  //               itemBuilder: (context, index) {
-  //                 return Container(
-  //                   padding: EdgeInsets.only(left: 16, right: 16, top: 10, bottom: 10),
-  //                   child: Row(
-  //                     children: <Widget>[
-  //                       Expanded(
-  //                         child: Row(
-  //                           children: <Widget>[
-  //                             SizedBox(width: 16,),
-  //                             Expanded(
-  //                               child: Container(
-  //                                 color: Colors.transparent,
-  //                                 child: Column(
-  //                                   crossAxisAlignment: CrossAxisAlignment.start,
-  //                                   children: <Widget>[
-  //                                     Text(widget.name, style: TextStyle(fontSize: 16),),
-  //                                     SizedBox(height: 6,),
-  //                                     Text(data[index].messageContent as String),
-  //                                   ],
-  //                                 ),
-  //                               ),
-  //                             ),
-  //                           ],
-  //                         ),
-  //                       ),
-  //                       // Text(conversations.processTimestamp(data[index].timeStamp), style: TextStyle(fontSize: 12, fontWeight: widget.isMessageRead == 0 ? FontWeight.bold : FontWeight.normal),),
-  //                     ],
-  //                   ),
-  //                 );
-  //               }
-  //           ),
-  //           ));
-  //         }
-  //       }
-  //   );
   }
 }
