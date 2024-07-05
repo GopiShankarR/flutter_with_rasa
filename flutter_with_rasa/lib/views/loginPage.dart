@@ -1,12 +1,13 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, unused_local_variable, use_build_context_synchronously, unrelated_type_equality_checks
 
 import 'package:flutter/material.dart';
-import 'package:flutter_with_rasa/models/chatUsers.dart';
 import 'package:flutter_with_rasa/views/homeScreen.dart';
+import '../models/socketProvider.dart';
 import 'dart:math';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final SocketProvider? _socket;
+  const LoginPage(this._socket, {super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -37,9 +38,9 @@ class _LoginPageState extends State<LoginPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 25.0),
                   child: Container(
                     decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    border: Border.all(color: Colors.white),
-                    borderRadius: BorderRadius.circular(12),
+                      color: Colors.grey[200],
+                      border: Border.all(color: Colors.white),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.only(left: 20.0),
@@ -76,50 +77,50 @@ class _LoginPageState extends State<LoginPage> {
                   )
                 ),
                 SizedBox(height: 20,),
-              if(isRegistering == true)
+                if(isRegistering == true)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 25.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        border: Border.all(color: Colors.white),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 20.0),
+                        child: TextField(
+                          controller: contactController,
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            hintText: 'Contact',
+                          ),
+                        )
+                      )
+                    )
+                  ),
+                SizedBox(height: 20,),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 25.0),
                   child: Container(
+                    padding: EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.grey[200],
-                      border: Border.all(color: Colors.white),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 20.0),
-                      child: TextField(
-                        controller: contactController,
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          hintText: 'Contact',
+                    child: Center(
+                      child: TextButton(
+                        onPressed: () => isRegistering == true ? _register(context) : _login(context),
+                        child: Text(
+                          (isRegistering == true ? 'Submit' : 'Log In'), 
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          )
                         ),
-                      )
-                    )
-                  )
-                ),
-              SizedBox(height: 20,),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 25.0),
-                child: Container(
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: TextButton(
-                      onPressed: () => isRegistering == true ? _register(context) : _login(context),
-                      child: Text(
-                        (isRegistering == true ? 'Submit' : 'Log In'), 
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        )
                       ),
                     ),
                   ),
                 ),
-              ),
               SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -150,7 +151,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-    void _toggleRegisterState() {
+  void _toggleRegisterState() {
     setState(() {
       isRegistering = !isRegistering;
     });
@@ -158,40 +159,43 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _login(BuildContext context) async {
     final name = usernameController.text;
-    int response = await ChatUsers().queryWithName(name);
-    int userId = 0;
+    final password = passwordController.text;
+    final contact = contactController.text;
+    final loginData = {'username': name, 'password': password, 'contact': contact};
 
-    if(response != 0) {
-      userId = response;
-      if (!mounted) return;
-        Navigator.of(context).pushReplacement(MaterialPageRoute(
-          builder: (_) => HomeScreen(userId),
-        ));
-    } else {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Login Failed'),
-            content: const SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                Text('User might not be registered or the username and password may be incorrect. Try Again!'),
-              ],
-            ),
-          ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: const Text('OK'),  
+    widget._socket?.socket?.emit('login', loginData);
+    widget._socket?.socket?.on('login_response', (response) {
+      if(response.runtimeType == double) {
+        if (!mounted) return;
+          Navigator.of(context).pushReplacement(MaterialPageRoute(
+            builder: (_) => HomeScreen(response, widget._socket),
+          ));
+      } else {
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: Text(response),
+              content: const SingleChildScrollView(
+              child: ListBody(
+                children: <Widget>[
+                  Text('User might not be registered or the username and password may be incorrect. Try Again!'),
+                ],
               ),
-            ],
-          );
-        },
-      );
-    }
+            ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('OK'),  
+                ),
+              ],
+            );
+          },
+        );
+      }
+    });
   }
 
   Future<void> _register(BuildContext context) async {
@@ -201,20 +205,54 @@ class _LoginPageState extends State<LoginPage> {
     
     Random random = Random();
 
-    if (!mounted) return;
+    final loginData = {'username': username, 'password': password, 'contact': contact};
+    widget._socket?.socket?.emit('register', loginData);
 
-    final newUser = ChatUsers(
-      userId: random.nextInt(100),
-      username: username,
-      contact: contact,
-    );
-
-    newUser.dbSave();
-
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => HomeScreen(newUser.userId as int),
-      )
-    );
+    widget._socket?.socket?.on('register_response', (response) {
+      if(response.runtimeType == double) {
+        final userId = response;
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('User Registered Successfully'),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pushReplacement(MaterialPageRoute(
+                      builder: (_) => HomeScreen(userId.toInt(), widget._socket),
+                    ));
+                  },
+                  child: const Text('OK'),  
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        showDialog(
+          context: context,
+          builder: (context) {
+            final insertedId = response['userId'].toInt();
+            return AlertDialog(
+              title: Text(response['response'] as String),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pushReplacement(MaterialPageRoute(
+                      builder: (_) => HomeScreen(insertedId, widget._socket),
+                    ));
+                  },
+                  child: const Text('OK'), 
+                ),
+              ],
+            );
+          },
+        );
+      }
+    });
   }
 }
